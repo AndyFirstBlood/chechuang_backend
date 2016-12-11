@@ -15,28 +15,26 @@ function create(req, res, next) {
     const body = req.body;
     const smsCode = body.smsCode;
     const mobilePhoneNumber = body.mobilePhoneNumber;
-    const attributes = { username: body.username };
+    const username = body.username;
+    const attributes = { username: username };
     AV.User.signUpOrlogInWithMobilePhone(mobilePhoneNumber, smsCode, attributes)
         .then(function(user) {
-            const username = user.username;
-            const objectId = user.objectId;
+            const objectId = user.id;
             const mobilePhoneNumber = user.mobilePhoneNumber;
             const token = jwt.sign({
                 username: username,
-                objectId: objectId,
-                mobilePhoneNumber: mobilePhoneNumber
+                objectId: objectId
             }, config.jwtSecret);
-            return res.json({
-                token,
-                username: username,
-                mobilePhoneNumber: mobilePhoneNumber
-            });
+            return res.send({user, token});
         }, function(err) {
             err = new APIError('Authentication error', httpStatus.UNAUTHORIZED);
             return next(err);
         });
 }
 
+function get(req, res) {
+    res.json(req.user);
+}
 /**
  * This is a protected route. Will return random number only if jwt token is provided in header.
  * @param req
@@ -44,11 +42,11 @@ function create(req, res, next) {
  * @returns {*}
  */
 function getRandomNumber(req, res) {
-    // req.user is assigned by jwt middleware if valid token is provided
+    console.log(req.user);
     return res.json({
         user: req.user,
         num: Math.random() * 100
     });
 }
 
-export default { create, getRandomNumber };
+export default { create, getRandomNumber, get };

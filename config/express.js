@@ -5,10 +5,12 @@ import path from 'path';
 import cookieParser from 'cookie-parser';
 import bodyParser from 'body-parser';
 import cors from 'cors';
+import favicon from 'serve-favicon';
 import methodOverride from 'method-override';
 import AV from 'leanengine';
 import helmet from 'helmet';
 import httpStatus from 'http-status';
+import expressJwt from 'express-jwt';
 import expressWinston from 'express-winston';
 import expressValidation from 'express-validation';
 import winstonInstance from './winston';
@@ -16,9 +18,9 @@ import routes from '../server/routes/index.route';
 import config from './env';
 import APIError from '../server/helpers/APIError';
 
-
 const app = express();
 
+console.log(`env is ${config.env}`);
 if (config.env === 'development') {
   app.use(logger('dev'));
 }
@@ -29,12 +31,29 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(methodOverride());
-
+app.use(favicon(config.rootPath + '/love.ico'));
 // secure apps by setting various HTTP headers
 app.use(helmet());
 
 // enable CORS - Cross Origin Resource Sharing
 app.use(cors());
+
+app.use(expressJwt({
+  secret: config.jwtSecret,
+  getToken (req) {
+    if (req.headers.authorization) {
+        return req.headers.authorization;
+    } else if (req.query && req.query.token) {
+      return req.query.token;
+    }
+    return null;
+  }
+}).unless({path: [
+  '/api/v1/captcha/image',
+  {url: '/api/v1/auth/random', methods: ['GET']},
+  {url: '/api/v1/auth', methods: ['GET', 'POST']},
+  {url: /\/api\/v1\/sms/i, methods: ['GET']}
+]}));
 
 // enable detailed API logging in dev env
 if (config.env === 'development') {

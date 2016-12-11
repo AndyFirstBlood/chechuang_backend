@@ -1,16 +1,20 @@
 import express from 'express';
 import userCtrl from '../controller/user.controller';
+import expressJwt from 'express-jwt';
+import config from '../../config/env';
 
 const router = express.Router();
 
-router.route('/smscode/:mobilephonenumber')
-      .get(userCtrl.requestSmsCode)
+router.route('/')
+      .get(userCtrl.getAll)
+      .post(userCtrl.create);
 
-router.route('/verify/phone')
-      .post(userCtrl.verifyMobilePhone)
+router.route('/:user')
+      .get(userCtrl.show)
+      .put(userCtrl.update)
+      .delete(userCtrl.destroy);
 
-//sign in or login in with phone
-router.route('/signuporlogin/phone')
-      .post(userCtrl.signUpOrlogInWithMobilePhone)
+router.route('/:user/lover')
+      .get(userCtrl.showLover);
 
 export default router;

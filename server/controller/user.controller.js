@@ -1,39 +1,41 @@
 import AV from 'leanengine';
+import httpStatus from 'http-status';
+import APIError from '../helpers/APIError';
 // `AV.Object.extend` 方法一定要放在全局变量，否则会造成堆栈溢出。
 // 详见： https://leancloud.cn/docs/js_guide.html#对象
-function requestSmsCode(req, res, next) {
-    const mobilePhoneNumber = req.params.mobilePhoneNumber;
-    AV.Cloud.requestSmsCode(mobilePhoneNumber)
-        .then(function(success) {
-            res.json(success)
-        }, function(err) {
-            next(err)
-        });
+const query = new AV.Query('_User');
+
+
+function getAll(req, res, next) {
+
 }
 
-function verifyMobilePhone(req, res, next) {
-    const smsCode = Number(req.body.smsCode);
-    AV.User.verifyMobilePhone(smsCode).then(function() {
-        res.success("验证成功", 200);
-    }, function(err) {
-        next(err)
-    });
+function create(req, res, next) {
+
 }
 
-function signUpOrlogInWithMobilePhone(req, res, next) {
-    const body = req.body,
-        smsCode = body.smsCode,
-        mobilePhoneNumber = body.mobilePhoneNumber,
-        attributes = {
-            username: body.username,
-            password: body.password
-        };
-    AV.User.signUpOrlogInWithMobilePhone(mobilePhoneNumber, smsCode, attributes)
-        .then(function(user) {
-            res.json(user);
-        }, function(err) {
-            next(err)
-        });
+function show(req, res, next) {
+	const objectId = req.user.objectId;
+	console.log(req.user)
+	console.log(objectId)
+	query.get(objectId).then(user => {
+		res.send(user)
+	}, err => {
+		err = new APIError('Authentication error', httpStatus.UNAUTHORIZED);
+		return next(err);
+	})
 }
 
-export default { requestSmsCode, verifyMobilePhone, signUpOrlogInWithMobilePhone }
+function update(req, res, next) {
+
+}
+
+function destroy(req, res, next) {
+
+}
+
+function showLover(req, res, next) {
+
+}
+
+export default { getAll, create, show, update, destroy, showLover }
