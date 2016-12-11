@@ -1,78 +1,89 @@
-'use strict';
-var express = require('express'),
-    timeout = require('connect-timeout'),
-    compression = require('compression'),
-    path = require('path'),
-    cookieParser = require('cookie-parser'),
-    bodyParser = require('body-parser'),
-    AV = require('leanengine'),
-    glob = require('glob'),
-    http = require('http'),
-    async = require('async');
+import express from 'express';
+import logger from 'morgan';
+import compression from 'compression';
+import path from 'path';
+import cookieParser from 'cookie-parser';
+import bodyParser from 'body-parser';
+import cors from 'cors';
+import methodOverride from 'method-override';
+import AV from 'leanengine';
+import helmet from 'helmet';
+import httpStatus from 'http-status';
+import expressWinston from 'express-winston';
+import expressValidation from 'express-validation';
+import winstonInstance from './winston';
+import routes from '../server/routes/index.route';
+import config from './env';
+import APIError from '../server/helpers/APIError';
 
-var models,
-    controllers;
 
-module.exports = function(app, config) {
-    app.use(express.static(config.root + '/app/view/static'));
-    app.use(timeout('15s'));
-    app.use(AV.express());
-    app.use(compression());
-    app.use(bodyParser.json());
-    app.use(bodyParser.urlencoded({ extended: false }));
-    app.use(cookieParser());
+const app = express();
 
-    app.use(function(req, res, next) {
-        res.set({
-            'Access-Control-Allow-Origin': '*',
-        });
-        next();
-    });
+if (config.env === 'development') {
+  app.use(logger('dev'));
+}
 
-    // load controller
-    controllers = glob.sync(config.root + '/app/controller/*.js');
-    async.each(controllers, function(controller, callback) {
-        console.log('Loading Router：', controller);
-        require(controller)(app);
-        callback();
-    }, function(err) {
-        if (err) {
-            console.log('A file failed to process.');
-        }
-    })
+app.use(AV.express());
+app.use(compression());
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(cookieParser());
+app.use(methodOverride());
 
-    app.use(function(req, res, next) {
-        // 如果任何一个路由都没有返回响应，则抛出一个 404 异常给后续的异常处理器
-        if (!res.headersSent) {
-            var err = new Error('Not Found');
-            err.status = 404;
-            next(err);
-        }
-    });
+// secure apps by setting various HTTP headers
+app.use(helmet());
 
-    // error handlers
-    app.use(function(err, req, res, next) { // jshint ignore:line
-        if (req.timedout && req.headers.upgrade === 'websocket') {
-            // 忽略 websocket 的超时
-            return;
-        }
-        var statusCode = err.status || 500;
-        if (statusCode === 500) {
-            console.error(err.stack || err);
-        }
-        if (req.timedout) {
-            console.error('请求超时: url=%s, timeout=%d, 请确认方法执行耗时很长，或没有正确的 response 回调。', req.originalUrl, err.timeout);
-        }
-        res.status(statusCode);
-        // 默认不输出异常详情
-        var error = {}
-        if (app.get('env') === 'development') {
-            // 如果是开发环境，则将异常堆栈输出到页面，方便开发调试
-            error = err;
-        }
-        res.send({
-            message: err.message,
-            error: error
-        });
-    });
-};
+// enable CORS - Cross Origin Resource Sharing
+app.use(cors());
+
+// enable detailed API logging in dev env
+if (config.env === 'development') {
+  expressWinston.requestWhitelist.push('body');
+  expressWinston.responseWhitelist.push('body');
+  app.use(expressWinston.logger({
+    winstonInstance,
+    meta: true, // optional: log meta data about request (defaults to true)
+    msg: 'HTTP {{req.method}} {{req.url}} {{res.statusCode}} {{res.responseTime}}ms',
+    colorStatus: true // Color the status code (default green, 3XX cyan, 4XX yellow, 5XX red).
+  }));
+}
+
+// mount all routes on /api path
+app.use('/api/v1', routes);
+
+// if error is not an instanceOf APIError, convert it.
+app.use((err, req, res, next) => {
+  if (err instanceof expressValidation.ValidationError) {
+    // validation error contains errors which is an array of error each containing message[]
+    const unifiedErrorMessage = err.errors.map(error => error.messages.join('. ')).join(' and ');
+    const error = new APIError(unifiedErrorMessage, err.status, true);
+    return next(error);
+  } else if (!(err instanceof APIError)) {
+    const apiError = new APIError(err.message, err.status, err.isPublic);
+    return next(apiError);
+  }
+  return next(err);
+});
+
+// catch 404 and forward to error handler
+app.use((req, res, next) => {
+  const err = new APIError('API not found', httpStatus.NOT_FOUND);
+  return next(err);
+});
+
+// log error in winston transports except when executing test suite
+if (config.env !== 'test') {
+  app.use(expressWinston.errorLogger({
+    winstonInstance
+  }));
+}
+
+// error handler, send stacktrace only during development
+app.use((err, req, res, next) => // eslint-disable-line no-unused-vars
+  res.status(err.status).json({
+    message: err.isPublic ? err.message : httpStatus[err.status],
+    stack: config.env === 'development' ? err.stack : {}
+  })
+);
+
+export default app;
