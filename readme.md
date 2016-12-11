@@ -1,6 +1,2 @@
-# ticket
-express
-
-mongo
-
-leancloud
+# chechuang_backend
+back end for chechuang
