@@ -37,7 +37,7 @@ app.use(helmet());
 
 // enable CORS - Cross Origin Resource Sharing
 app.use(cors());
-
+app.disable('x-powered-by');
 app.use(expressJwt({
   secret: config.jwtSecret,
   getToken (req) {
@@ -49,9 +49,11 @@ app.use(expressJwt({
     return null;
   }
 }).unless({path: [
-  '/api/v1/captcha/image',
-  {url: '/api/v1/auth/random', methods: ['GET']},
-  {url: '/api/v1/auth', methods: ['GET', 'POST']},
+  '/v1/captcha/image',
+  {url: '/v1/auth/random', methods: ['GET']},
+  {url: '/v1', methods: ['GET']},
+  {url: '/v1/', methods: ['GET']},
+  {url: '/v1/auth', methods: ['GET', 'POST']},
   {url: /\/api\/v1\/sms/i, methods: ['GET']}
 ]}));
 
@@ -67,8 +69,8 @@ if (config.env === 'development') {
   }));
 }
 
-// mount all routes on /api path
-app.use('/api/v1', routes);
+// mount all routes on /v1 path
+app.use('/v1', routes);
 
 // if error is not an instanceOf APIError, convert it.
 app.use((err, req, res, next) => {
